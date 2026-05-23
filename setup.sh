@@ -2,40 +2,34 @@
 
 clear
 echo "====================================================="
-echo "   MOBILE STREAM ENGINE: SETUP      "
+echo "             STREAM ENGINE INSTALLER                 "
 echo "====================================================="
-echo "⏳ Initializing modular deployment architecture..."
-echo "-----------------------------------------------------"
 
-# 1. Update Core Package Repositories
-echo "📦 Updating core system repositories..."
+# 1. Update package database
+echo "📦 Refreshing package lists..."
 pkg update -y -o Dpkg::Options::="--force-confold"
 
-# 2. Install Environment Binaries
-echo "🛠️  Installing system infrastructure (FFmpeg, Python, Curl)..."
-pkg install -y ffmpeg python ndk-sysroot clang make libffi openssl c-ares curl -o Dpkg::Options::="--force-confold"
+# 2. Install ONLY the two required packages (Python handles yt-dlp, FFmpeg handles processing)
+echo "🛠️  Installing minimal dependencies (FFmpeg + Python)..."
+pkg install -y ffmpeg python curl -o Dpkg::Options::="--force-confold"
 
-# 3. Deploy Extractor Dependencies
-echo "🐍 Deploying extraction libraries..."
-python3 -m pip install --upgrade pip
-python3 -m pip install --upgrade yt-dlp
+# 3. Quick install yt-dlp via Python's package manager
+echo "🐍 Installing yt-dlp core..."
+python3 -m pip install --no-cache-dir --upgrade yt-dlp
 
-# 4. Pull the Core Stream Script directly from GitHub
-echo "📡 Fetching core execution assets from repository..."
-GITHUB_RAW_URL="https://raw.githubusercontent.com/indexmarks/stream-termux/main/stream.sh"
+# 4. Pull the clean, non-scrolling stream engine from your GitHub repository
+echo "📡 Fetching streaming script..."
+GITHUB_RAW_URL="https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/main/stream.sh"
 
 curl -sL "$GITHUB_RAW_URL" -o $PREFIX/bin/stream
 
-# 5. Lock Down System Permissions
+# 5. Make it executable globally
 if [ -f "$PREFIX/bin/stream" ]; then
   chmod +x $PREFIX/bin/stream
-  echo ""
   echo "====================================================="
-  echo "   🎉 DEPLOYMENT SUCCESSFUL! SYSTEM READY            "
-  echo "====================================================="
-  echo "💡 To start streaming anytime, just type: stream"
+  echo "🎉 SETUP COMPLETE! Just type: stream"
   echo "====================================================="
 else
-  echo "❌ Critical Error: Could not download stream core script from GitHub."
+  echo "❌ Error: Could not fetch stream.sh from GitHub."
   exit 1
 fi
