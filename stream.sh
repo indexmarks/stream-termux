@@ -5,13 +5,13 @@ read -p "Stream Target: " STREAM_TARGET
 read -p "Bitrate (default: 6000k): " STREAM_BITRATE
 read -p "Resolution (default: 1080): " STREAM_RESOLUTION
 read -p "FPS (default: 60): " STREAM_FPS
-read -p "Preset (ultrafast/superfast/veryfast/medium) [default: ultrafast]: " STREAM_PRESET
+read -p "Preset (ultrafast/superfast/veryfast/medium) [default: veryfast]: " STREAM_PRESET
 read -p "Infinite Loop? (y/n): " ENABLE_LOOP
 
 STREAM_BITRATE=${STREAM_BITRATE:-6000k}
 STREAM_RESOLUTION=${STREAM_RESOLUTION:-1080}
 STREAM_FPS=${STREAM_FPS:-60}
-STREAM_PRESET=${STREAM_PRESET:-ultrafast}
+STREAM_PRESET=${STREAM_PRESET:-veryfast}
 
 if [ -z "$VIDEO_URL" ] || [ -z "$STREAM_TARGET" ]; then
     echo "Error: Missing required inputs."
@@ -45,7 +45,7 @@ while true; do
         -c:v libx264 -preset "$STREAM_PRESET" -tune film
         -b:v "$STREAM_BITRATE" -maxrate "$STREAM_BITRATE" -bufsize "$STREAM_BITRATE"
         -r "$STREAM_FPS" -g "$GOP_SIZE" -pix_fmt yuv420p
-        -c:a aac -b:a 320k -ar 44100
+        -c:a aac -b:a 160k -ar 44100
         -f flv -flvflags no_sequence_end -tls_verify 0
         "$STREAM_TARGET"
     )
