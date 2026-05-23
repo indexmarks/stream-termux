@@ -19,7 +19,7 @@ python3 -m pip install --no-cache-dir --upgrade yt-dlp
 
 # 4. Pull the clean, non-scrolling stream engine from your GitHub repository
 echo "📡 Fetching streaming script..."
-GITHUB_RAW_URL="https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/main/stream.sh"
+GITHUB_RAW_URL="https://raw.githubusercontent.com/indexmarks/stream-termux/main/stream.sh"
 
 curl -sL "$GITHUB_RAW_URL" -o $PREFIX/bin/stream
 
