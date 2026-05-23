@@ -1,88 +1,66 @@
 #!/bin/bash
 
-clear
-echo "================================================="
-echo "              MOBILE STREAM ENGINE               "
-echo "================================================="
-echo ""
+read -p "Video URL: " VIDEO_URL
+read -p "Stream Target: " STREAM_TARGET
+read -p "Bitrate (default: 6000k): " STREAM_BITRATE
+read -p "Resolution (default: 1080): " STREAM_RESOLUTION
+read -p "FPS (default: 60): " STREAM_FPS
+read -p "Preset (ultrafast/superfast/veryfast/medium) [default: ultrafast]: " STREAM_PRESET
+read -p "Infinite Loop? (y/n): " ENABLE_LOOP
 
-# Gather operational inputs on the device
-read -p "🔗 Enter Video URL: " VIDEO_URL
-read -p "📊 Enter Bitrate (e.g., 3500k, 5000k, 8000k): " STREAM_BITRATE
-read -p "📺 Enter Max Resolution (1080, 720, 480): " MAX_RES
-read -p "⚡ Enter Target FPS (60, 30): " TARGET_FPS
-read -p "🔄 Enable Infinite Loop? (y/n): " ENABLE_LOOP
-read -p "🔑 Enter Stream Target (RTMP URI + Key): " STREAM_TARGET
-
-# Fallback configuration defaults
-[ -z "$STREAM_BITRATE" ] && STREAM_BITRATE="4000k"
-[ -z "$MAX_RES" ] && MAX_RES="720"
-[ -z "$TARGET_FPS" ] && TARGET_FPS="60"
-[ -z "$ENABLE_LOOP" ] && ENABLE_LOOP="n"
+STREAM_BITRATE=${STREAM_BITRATE:-6000k}
+STREAM_RESOLUTION=${STREAM_RESOLUTION:-1080}
+STREAM_FPS=${STREAM_FPS:-60}
+STREAM_PRESET=${STREAM_PRESET:-ultrafast}
 
 if [ -z "$VIDEO_URL" ] || [ -z "$STREAM_TARGET" ]; then
-  echo "❌ Error: Video URL and Stream Target are mandatory!"
-  exit 1
+    echo "Error: Missing required inputs."
+    exit 1
 fi
 
-GOP_SIZE=$((TARGET_FPS * 2))
+GOP_SIZE=$((STREAM_FPS * 2))
 
-run_stream() {
-  echo ""
-  echo "🔄 Extracting asset links naturally with yt-dlp..."
-  URLS=$(yt-dlp -g -f "bestvideo[height<=${MAX_RES}]+bestaudio/best" --cookies $HOME/cookies.txt "$VIDEO_URL" 2>/dev/null)
-  
-  if [ -z "$URLS" ]; then
-    echo "❌ Link extraction failed."
-    return 1
-  fi
-
-  PARSED_VIDEO=$(echo "$URLS" | sed -n '1p')
-  PARSED_AUDIO=$(echo "$URLS" | sed -n '2p')
-
-  echo "🚀 Dispatched hardware stream threads..."
-  echo "📊 Stream status will update on a single line below:"
-  echo "-------------------------------------------------"
-
-  if [ -n "$PARSED_AUDIO" ]; then
-    ffmpeg -hide_banner -v info -stats \
-      -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re \
-      -i "$PARSED_VIDEO" -re -i "$PARSED_AUDIO" -map 0:v:0 -map 1:a:0 \
-      -c:v libx264 -preset ultrafast -tune film \
-      -b:v "$STREAM_BITRATE" -maxrate "$STREAM_BITRATE" -bufsize "$STREAM_BITRATE" \
-      -r "$TARGET_FPS" -g "$GOP_SIZE" -pix_fmt yuv420p \
-      -c:a aac -b:a 160k -ar 44100 \
-      -f flv -flvflags no_sequence_end -tls_verify 0 "$STREAM_TARGET"
-  else
-    ffmpeg -hide_banner -v info -stats \
-      -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re \
-      -i "$PARSED_VIDEO" \
-      -c:v libx264 -preset ultrafast -tune film \
-      -b:v "$STREAM_BITRATE" -maxrate "$STREAM_BITRATE" -bufsize "$STREAM_BITRATE" \
-      -r "$TARGET_FPS" -g "$GOP_SIZE" -pix_fmt yuv420p \
-      -c:a aac -b:a 160k -ar 44100 \
-      -f flv -flvflags no_sequence_end -tls_verify 0 "$STREAM_TARGET"
-  fi
-  return $?
-}
-
-if [ "$ENABLE_LOOP" = "y" ] || [ "$ENABLE_LOOP" = "Y" ]; then
-  while true; do
-    run_stream
-    STATUS=$?
-    if [ $STATUS -eq 0 ]; then
-      echo -e "\n🎉 Video playback loop finished cleanly. Restarting..."
-    else
-      echo -e "\n⚠️ Stream dropped (Exit Code $STATUS). Re-engaging in 5 seconds..."
-      sleep 5
+while true; do
+    MAPS=$(yt-dlp -g -f "bestvideo[height<=${STREAM_RESOLUTION}]+bestaudio/best/best" "$VIDEO_URL" 2>/dev/null)
+    if [ $? -ne 0 ] || [ -z "$MAPS" ]; then
+        echo "Error: Stream extraction failed."
+        if [ "$ENABLE_LOOP" != "y" ]; then exit 1; fi
+        sleep 5
+        continue
     fi
-  done
-else
-  run_stream
-  STATUS=$?
-  if [ $STATUS -eq 0 ]; then
-    echo -e "\n🎉 Video playback completed cleanly. Stream has ended natively."
-  else
-    echo -e "\n❌ Stream terminated with error code $STATUS."
-  fi
-fi
+
+    VIDEO_TRACK=$(echo "$MAPS" | sed -n '1p')
+    AUDIO_TRACK=$(echo "$MAPS" | sed -n '2p')
+
+    FFMPEG_ARGS=(-hide_banner -v error -stats)
+    NET_OPTS=(-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5)
+
+    if [ -n "$AUDIO_TRACK" ]; then
+        FFMPEG_ARGS+=("${NET_OPTS[@]}" -re -i "$VIDEO_TRACK" "${NET_OPTS[@]}" -re -i "$AUDIO_TRACK" -map 0:v:0 -map 1:a:0)
+    else
+        FFMPEG_ARGS+=("${NET_OPTS[@]}" -re -i "$VIDEO_TRACK")
+    fi
+
+    FFMPEG_ARGS+=(
+        -c:v libx264 -preset "$STREAM_PRESET" -tune film
+        -b:v "$STREAM_BITRATE" -maxrate "$STREAM_BITRATE" -bufsize "$STREAM_BITRATE"
+        -r "$STREAM_FPS" -g "$GOP_SIZE" -pix_fmt yuv420p
+        -c:a aac -b:a 320k -ar 44100
+        -f flv -flvflags no_sequence_end -tls_verify 0
+        "$STREAM_TARGET"
+    )
+
+    ffmpeg "${FFMPEG_ARGS[@]}"
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -eq 0 ] && [ "$ENABLE_LOOP" != "y" ]; then
+        break
+    fi
+
+    if [ "$ENABLE_LOOP" != "y" ]; then
+        echo "Error: Stream stopped prematurely (Code $EXIT_CODE)."
+        break
+    fi
+
+    sleep 5
+done
