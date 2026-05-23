@@ -2,7 +2,7 @@
 
 clear
 echo "================================================="
-echo "      MOBILE STREAM ENGINE      "
+echo "              MOBILE STREAM ENGINE               "
 echo "================================================="
 echo ""
 
@@ -17,7 +17,7 @@ read -p "🔑 Enter Stream Target (RTMP URI + Key): " STREAM_TARGET
 # Fallback configuration defaults
 [ -z "$STREAM_BITRATE" ] && STREAM_BITRATE="4000k"
 [ -z "$MAX_RES" ] && MAX_RES="720"
-[ -z "$TARGET_FPS" ] && TARGET_FPS="30"
+[ -z "$TARGET_FPS" ] && TARGET_FPS="60"
 [ -z "$ENABLE_LOOP" ] && ENABLE_LOOP="n"
 
 if [ -z "$VIDEO_URL" ] || [ -z "$STREAM_TARGET" ]; then
@@ -41,21 +41,27 @@ run_stream() {
   PARSED_AUDIO=$(echo "$URLS" | sed -n '2p')
 
   echo "🚀 Dispatched hardware stream threads..."
+  echo "📊 Stream status will update on a single line below:"
+  echo "-------------------------------------------------"
 
   if [ -n "$PARSED_AUDIO" ]; then
-    ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re \
+    ffmpeg -hide_banner -v info -stats \
+      -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re \
       -i "$PARSED_VIDEO" -re -i "$PARSED_AUDIO" -map 0:v:0 -map 1:a:0 \
       -c:v libx264 -preset ultrafast -tune film \
       -b:v "$STREAM_BITRATE" -maxrate "$STREAM_BITRATE" -bufsize "$STREAM_BITRATE" \
       -r "$TARGET_FPS" -g "$GOP_SIZE" -pix_fmt yuv420p \
-      -c:a aac -b:a 160k -ar 44100 -f flv -flvflags no_sequence_end -tls_verify 0 "$STREAM_TARGET"
+      -c:a aac -b:a 160k -ar 44100 \
+      -f flv -flvflags no_sequence_end -tls_verify 0 "$STREAM_TARGET"
   else
-    ffmpeg -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re \
+    ffmpeg -hide_banner -v info -stats \
+      -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 5 -re \
       -i "$PARSED_VIDEO" \
       -c:v libx264 -preset ultrafast -tune film \
       -b:v "$STREAM_BITRATE" -maxrate "$STREAM_BITRATE" -bufsize "$STREAM_BITRATE" \
       -r "$TARGET_FPS" -g "$GOP_SIZE" -pix_fmt yuv420p \
-      -c:a aac -b:a 160k -ar 44100 -f flv -flvflags no_sequence_end -tls_verify 0 "$STREAM_TARGET"
+      -c:a aac -b:a 160k -ar 44100 \
+      -f flv -flvflags no_sequence_end -tls_verify 0 "$STREAM_TARGET"
   fi
   return $?
 }
@@ -63,8 +69,20 @@ run_stream() {
 if [ "$ENABLE_LOOP" = "y" ] || [ "$ENABLE_LOOP" = "Y" ]; then
   while true; do
     run_stream
-    [ $? -ne 0 ] && sleep 5
+    STATUS=$?
+    if [ $STATUS -eq 0 ]; then
+      echo -e "\n🎉 Video playback loop finished cleanly. Restarting..."
+    else
+      echo -e "\n⚠️ Stream dropped (Exit Code $STATUS). Re-engaging in 5 seconds..."
+      sleep 5
+    fi
   done
 else
   run_stream
+  STATUS=$?
+  if [ $STATUS -eq 0 ]; then
+    echo -e "\n🎉 Video playback completed cleanly. Stream has ended natively."
+  else
+    echo -e "\n❌ Stream terminated with error code $STATUS."
+  fi
 fi
