@@ -1,18 +1,25 @@
 #!/bin/bash
 
-# 1. Update Termux repositories and packages quietly
-pkg update -y && pkg upgrade -y
-pkg install -y ffmpeg python curl sed
+# Force apt to run non-interactively and keep old configuration files automatically
+export DEBIAN_FRONTEND=noninteractive
 
-# 2. Upgrade pip and install yt-dlp
+# Update and install dependencies cleanly
+pkg update -y -o Dpkg::Options::="--force-confold"
+pkg upgrade -y -o Dpkg::Options::="--force-confold"
+pkg install -y ffmpeg python curl sed -o Dpkg::Options::="--force-confold"
+
+# Upgrade pip and install yt-dlp
 pip install --upgrade pip yt-dlp
 
-# 3. Fetch the raw streaming script directly into the global system folder
+# Download stream script directly into the global system binary directory
 curl -sL "https://raw.githubusercontent.com/indexmarks/stream-termux/main/stream.sh" -o "$PREFIX/bin/stream"
 
-# 4. Make the global stream command executable
+# Make the stream command executable globally
 chmod +x "$PREFIX/bin/stream"
 
-# 5. Clear the screen and execute it immediately for the first setup run
 clear
+echo "Setup complete! You can now run your stream from anywhere by typing: stream"
+echo "Starting stream configuration..."
+sleep 2
+
 stream
